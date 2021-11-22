@@ -5,6 +5,7 @@ package opensrs
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -15,11 +16,11 @@ const (
 	// This is a pro-forma convention given that Go dependencies
 	// tends to be fetched directly from the repo.
 	// It is also used in the user-agent identify the client.
-	Version = "0.0.1"
+	Version = "0.0.2"
 
-	// defaultBaseURL to the OpenSRS production API.
-	defaultBaseURL = "https://rr-n1-tor.opensrs.net:55443"
-	//defaultBaseURL = "https://horizon.opensrs.net:55443"
+	// OpenSRS production and test API endpoints
+	defaultBaseURL = "https://rr-n1-tor.opensrs.net:55443" // Production
+	testBaseURL    = "https://horizon.opensrs.net:55443"   // Test
 
 	// userAgent represents the default user agent used
 	// when no other user agent is set.
@@ -35,8 +36,7 @@ type Client struct {
 	// Credentials used for accessing the OpenSRS API
 	Credentials Credentials
 
-	// BaseURL for API requests.
-	// Defaults to the public OpenSRS API, but can be set to a different endpoint (e.g. the sandbox).
+	// BaseURL for API requests, defaults to the public OpenSRS API
 	BaseURL string
 
 	// UserAgent used when communicating with the OpenSRS API.
@@ -50,10 +50,21 @@ type Client struct {
 }
 
 // NewClient returns a new OpenSRS API client using the given credentials.
-func NewClient(credentials Credentials) *Client {
+func NewClient(userName string, apiKey string) *Client {
+	credentials := NewApiKeyMD5Credentials(userName, apiKey)
 	c := &Client{Credentials: credentials, HttpClient: &http.Client{}, BaseURL: defaultBaseURL}
 	c.Domains = &DomainsService{client: c}
 	return c
+}
+
+// SetTest switches a client to the OpenSRS test environment
+func (c *Client) SetTest() {
+	c.BaseURL = testBaseURL
+}
+
+// SetDebug turns on client debug output
+func (c *Client) SetDebug() {
+	c.Debug = true
 }
 
 // NewRequest creates an API request.
@@ -130,7 +141,9 @@ func (c *Client) Do(req *http.Request, obj *OpsResponse) (*http.Response, error)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	if c.Debug {
 		log.Printf("Response received: %#v", resp)
@@ -145,6 +158,9 @@ func (c *Client) Do(req *http.Request, obj *OpsResponse) (*http.Response, error)
 	// the response body is decoded into v.
 	if obj != nil {
 		b, err := ioutil.ReadAll(resp.Body)
+		if c.Debug {
+			log.Printf("Body: %s", string(b))
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -218,6 +234,5 @@ func CheckOpsResponse(resp *http.Response, or *OpsResponse) error {
 	errorResponse := &ErrorResponse{}
 	errorResponse.HttpResponse = resp
 	errorResponse.OpsResponse = or
-
 	return errorResponse
 }

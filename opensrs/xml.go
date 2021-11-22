@@ -149,28 +149,37 @@ type OPSEnvelope struct {
 
 func FromXml(b []byte, v interface{}) error {
 	var q OPSEnvelope
+
+	// Unmarshal the XML
 	err := xml.Unmarshal(b, &q)
 	if err != nil {
 		return err
 	}
+
+	// Decode the XML data block
 	m := q.Body.DataBlock.decode()
+
+	// Convert map to struct in v
 	jsonString, _ := json.Marshal(m)
-
 	return json.Unmarshal(jsonString, &v)
-
 }
 
-func ToXml(v interface{}) (b []byte, err error) {
+//func ToXml(v interface{}) (b []byte, err error) {
+func ToXml(v interface{}) ([]byte, error) {
 	jsonString, _ := json.Marshal(v)
+
 	var m interface{}
-	json.Unmarshal(jsonString, &m)
+	err := json.Unmarshal(jsonString, &m)
+	if err != nil {
+		return nil, err
+	}
 
 	q := OPSEnvelope{Header: Header{Version: "0.9"}, Body: Body{}}
 	dtass, ok := internalEncode(reflect.ValueOf(m)).(DtAssoc)
 	if ok {
 		q.Body.DataBlock.DtAssoc = &dtass
 	} else {
-		return nil, errors.New("Encoding failed")
+		return nil, errors.New("encoding failed")
 	}
 	return xml.MarshalIndent(q, "", " ")
 }
