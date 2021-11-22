@@ -164,7 +164,6 @@ func FromXml(b []byte, v interface{}) error {
 	return json.Unmarshal(jsonString, &v)
 }
 
-//func ToXml(v interface{}) (b []byte, err error) {
 func ToXml(v interface{}) ([]byte, error) {
 	jsonString, _ := json.Marshal(v)
 
